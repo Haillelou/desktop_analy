@@ -19,18 +19,18 @@ season_t AS (
 -- 作业/笔记统计表
 submit_t AS (
     SELECT user_id as userid,
-           season_id as seasonid,
+           season_id as seasonid,episode_id,
            count(distinct if(is_finish_homework=1,episode_id,null)) as homework_cnt,
            count(distinct if(is_finish_note=1,episode_id,null)) as note_cnt
       FROM dw_dws.dws_tutor_user_after_episode_activity_info_da
      WHERE dt = date_sub(current_date,1)
-       AND to_date(from_unixtime(int(episode_start_time/1000))) between '2025-06-10' and '2025-06-18'
-     GROUP BY user_id, season_id
+       AND to_date(from_unixtime(int(episode_start_time/1000))) between '2025-06-13' and '2025-07-04'
+     GROUP BY user_id, season_id,episode_id
 ),
 -- 分层随堂探究统计表
 fenceng_t AS (
   SELECT a.userid,
-       a.seasonid,
+       a.seasonid,episodeid,
        count(distinct episodeid) as kehou_should_answer_cnt, 
        count(case when is_finish='1' then 1 else null end) as kehou_answer_cnt,
        sum(case when kehou_answer_right_cnt is not null then kehou_answer_right_cnt else 0 end) as kehou_answer_right_cnt
@@ -41,7 +41,7 @@ fenceng_t AS (
        seasonid,
        episodeid
     FROM tutor.dw_tutor_season_order_snapshot_da_view 
-    WHERE dt = '2025-06-18'
+    WHERE dt = '2025-07-04'
       AND order_paidtime > '0'       
       AND refundedtime = '0'       
       AND is_normal_order = '1'                
@@ -51,8 +51,8 @@ fenceng_t AS (
       AND courseid in ('1','2','3','204','4','207')
       AND grade_type in ('xiaoxue','chuzhong','gaozhong') 
       AND seasonname NOT RLIKE '测试'           
-      AND to_date(from_unixtime(int(order_paidtime/1000))) <= '2025-06-18'
-      AND to_date(from_unixtime(int(episode_starttime/1000))) <=  '2025-06-18'
+      AND to_date(from_unixtime(int(order_paidtime/1000))) <= '2025-07-04'
+      AND to_date(from_unixtime(int(episode_starttime/1000))) <=  '2025-07-04'
       AND to_date(from_unixtime(int(episode_starttime/1000))) >= to_date(from_unixtime(int(order_paidtime/1000)))
       AND source NOT IN ('12','22','19')         
       AND lessonmarkid NOT IN('63', '71')               
@@ -110,12 +110,16 @@ fenceng_t AS (
   ON a.episodeid=afterclass_t.sourceid AND a.userid=afterclass_t.userid
   GROUP BY
           a.userid,
-          a.seasonid
+          a.seasonid,episodeid
 ),
+ab as (
+    select distinct userid,lesson_id,abtest
+    from dw_dwd.desktop_try
+)
 attend_finish_t AS (
     SELECT 
         userid,
-        seasonid,
+        seasonid,episodeid,episode_start_dt,
         count(distinct if(is_should_attend=1,episodeid,null)) as should_attend_cnt,
         count(distinct if(is_attend=1,episodeid,null)) as live_attend_cnt,
         count(distinct if(is_finish=1,episodeid,null)) as live_finish_cnt,
@@ -131,6 +135,7 @@ attend_finish_t AS (
             finish_t.user_id as userid,
             finish_t.lesson_id as seasonid,
             finish_t.episode_id as episodeid,
+            finish_t.episode_start_dt,
             1 as is_should_attend,
             if(finish_t.lesson_episode_label_id='1000010' and finish_t.is_attend_live='1', 1, 0) as is_attend,
             if(finish_t.lesson_episode_label_id='1000010' and finish_t.is_attend_live='1' and (finish_t.live_duration/finish_t.episode_duration>=0.3 or finish_t.live_duration/60000>=30), 1, 0) as is_finish,
@@ -154,6 +159,7 @@ attend_finish_t AS (
                 , b.is_attend_live
                 , b.live_duration
                 , b.episode_duration
+               -- ,b.episode_start_dt
                 , hour(from_unixtime(int(b.episode_start_tp/1000))) as epi_hour 
                 , CASE b.episode_week_day 
                     WHEN 1 THEN '周一'
@@ -187,14 +193,14 @@ attend_finish_t AS (
             AND finish_t.lesson_episode_label_id = '1000010'
             AND finish_t.is_have_ticket = '1'
             AND finish_t.is_deleted = '0'
-            AND finish_t.episode_start_dt between '2025-06-10' and '2025-06-18'
+            AND finish_t.episode_start_dt between '2025-06-13' and '2025-07-04'
     ) t
-    GROUP BY userid, seasonid
+    GROUP BY  userid,seasonid,episodeid,episode_start_dt
 ),
 mx as (
     SELECT 
     -- 1. 学生基本信息
-    base_t.userid as userid,
+    base_t.userid as userid,ab.abtest,
     CASE base_t.semesterid 
         WHEN 132 THEN '23寒'
         WHEN 133 THEN '23春'
@@ -256,6 +262,9 @@ mx as (
     season_t.teacher_nickname as teacher_nickname, --主讲姓名
     season_t.teacher_ldap as teacher_ldap, --主讲ldap
 
+    episodeid,
+    episode_start_dt,
+
     -- 3. 到课情况
     nvl(attend_finish_t.should_attend_cnt,0) as ydk, --`应到课次数`,
     nvl(attend_finish_t.live_attend_cnt,0) as live_dk, --`直播到课次数`,
@@ -289,7 +298,7 @@ FROM
         grade_type,
         gradeid
     FROM tutor.dm_tutor_season_team_renewal_detail_da
-    WHERE dt = '2025-06-18'
+    WHERE dt = '2025-07-04'
         AND semesterid = '141' 
         AND courseid in ('1','2','3','204','4','207')
         AND grade_type in ('xiaoxue','chuzhong','gaozhong')
@@ -297,9 +306,43 @@ FROM
         AND seasonid in (13424273,13424415,13424418,13424423,13424412,13424430,13424476,13424414,13504195,13504181,13504060,13504061,13504183,13506170,13426353,13426354,13426126,13426127,13426631,13426634)
 ) base_t
 LEFT JOIN season_t ON base_t.seasonid = season_t.seasonid
+left join ab on base_t.userid = ab.userid AND base_t.seasonid = ab.seasonid
 LEFT JOIN attend_finish_t ON base_t.userid = attend_finish_t.userid AND base_t.seasonid = attend_finish_t.seasonid
-LEFT JOIN submit_t ON base_t.userid = submit_t.userid AND base_t.seasonid = submit_t.seasonid
-LEFT JOIN fenceng_t ON base_t.userid = fenceng_t.userid AND base_t.seasonid = fenceng_t.seasonid
+LEFT JOIN submit_t ON base_t.userid = submit_t.userid AND base_t.seasonid = submit_t.seasonid and attend_finish_t.episodeid = submit_t.episodeid
+LEFT JOIN fenceng_t ON base_t.userid = fenceng_t.userid AND base_t.seasonid = fenceng_t.seasonid and attend_finish_t.episodeid = fenceng_t.episodeid
+    where ab.userid is not null
 )
-select 
+select abtest,
+    season,grade_type,grade_name,subject_name,
+    base_t.seasonid as 班级id,
+    base_t.seasonname as 班课名,
+    season_t.season_week as 周几上课,
+    season_t.season_time as 上课时间,
+    season_t.teacher_nickname as 主讲姓名,
+    season_t.teacher_ldap as 主讲ldap,
+
+    episodeid as 章节id,
+    episode_start_dt as 章节上课时间,
+    sum(live_dk) as 直播到课,
+    sum(live_wk) as 直播完课,
+    sum(ydk) as 应到课,
+    sum(hf_dk) as 回放到课,
+    sum(hf_wk) as 回放完课,
+    sum(total_wk) as 总完课,
+    sum(work_tj) as 作业提交,
+    sum(bj_tj) as 笔记提交,
+    sum(pse_ydk) as 伪直播应到课,
+    sum(pse_dk) as 伪直播到课,
+    sum(pse_wk) as 伪直播完课
 from mx 
+group by abtest,
+    season,grade_type,grade_name,subject_name,
+    base_t.seasonid ,
+    base_t.seasonname ,
+    season_t.season_week ,
+    season_t.season_time ,
+    season_t.teacher_nickname,
+    season_t.teacher_ldap ,
+
+    episodeid,
+    episode_start_dt
