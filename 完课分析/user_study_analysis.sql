@@ -57,7 +57,8 @@ fenceng_t AS (
       AND lessonmarkid NOT IN('63', '71')               
       AND lesson_episode_label_id = '1000010'
   ) a 
-  LEFT JOIN (SELECT userid,
+  LEFT JOIN (
+    SELECT userid,
          sourceid,
          is_finish,
          count(distinct case when answerStatus='1' then questionid else null end) as kehou_answer_right_cnt
@@ -313,26 +314,26 @@ LEFT JOIN fenceng_t ON base_t.userid = fenceng_t.userid AND base_t.seasonid = fe
 )
 select abtest,
     season,grade_type,grade_name,subject_name,
-    seasonid as '班级id',
-    seasonname as '班课名',
-    season_week as '周几上课',
-    season_time as '上课时间',
-    teacher_nickname as '主讲姓名',
-    teacher_ldap as '主讲ldap',
+    seasonid as `班级id`,
+    seasonname as `班课名`,
+    season_week as `周几上课`,
+    season_time as `上课时间`,
+    teacher_nickname as `主讲姓名`,
+    teacher_ldap as `主讲ldap`,
 
-    episodeid as '章节id',
-    episode_start_dt as '章节上课时间',
-    sum(live_dk) as '直播到课',
-    sum(live_wk) as '直播完课',
-    sum(ydk) as '应到课',
-    sum(hf_dk) as '回放到课',
-    sum(hf_wk) as '回放完课',
-    sum(total_wk) as '总完课',
-    sum(work_tj) as '作业提交',
-    sum(bj_tj) as '笔记提交',
-    sum(pse_ydk) as '伪直播应到课',
-    sum(pse_dk) as '伪直播到课',
-    sum(pse_wk) as '伪直播完课'
+    episodeid as `章节id`,
+    episode_start_dt as `章节上课时间`,
+    sum(live_dk) as `直播到课`,
+    sum(live_wk) as `直播完课`,
+    sum(ydk) as `应到课`,
+    sum(hf_dk) as `回放到课`,
+    sum(hf_wk) as `回放完课`,
+    sum(total_wk) as `总完课`,
+    sum(work_tj) as `作业提交`,
+    sum(bj_tj) as `笔记提交`,
+    sum(pse_ydk) as `伪直播应到课`,
+    sum(pse_dk) as `伪直播到课`,
+    sum(pse_wk) as `伪直播完课`
 from mx 
 group by abtest,
     season,grade_type,grade_name,subject_name,
